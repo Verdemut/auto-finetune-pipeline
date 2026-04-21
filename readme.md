@@ -200,8 +200,9 @@ image,caption
 image1,description of first image
 image2,description of second image
 image3,description of third image
-Best Practices:
 ```
+Best Practices:
+
 
 Use 20-100 images for LoRA training
 
