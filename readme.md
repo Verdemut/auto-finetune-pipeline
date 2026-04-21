@@ -118,7 +118,7 @@ chmod +x install.sh
 
 ### Method 3: Manual Installation
 Clone repository
-git clone https://github.com/yourusername/auto-finetune-pipeline.git
+git clone https://github.com/Verdemut/auto-finetune-pipeline.git
 cd auto-finetune-pipeline
 
 Create virtual environment
