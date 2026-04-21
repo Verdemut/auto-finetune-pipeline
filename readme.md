@@ -116,8 +116,6 @@ chmod +x install.sh
 ./install.sh
 ./start.sh
 
-text
-
 ### Method 3: Manual Installation
 Clone repository
 git clone https://github.com/yourusername/auto-finetune-pipeline.git
@@ -203,6 +201,7 @@ image1,description of first image
 image2,description of second image
 image3,description of third image
 Best Practices:
+```
 
 Use 20-100 images for LoRA training
 
