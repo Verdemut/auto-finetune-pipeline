@@ -18,15 +18,6 @@ Professional Neural Network Training Interface for Fine-tuning Stable Diffusion 
 4. [Installation](#installation)
 5. [Quick Start](#quick-start)
 6. [Usage Guide](#usage-guide)
-7. [Project Structure](#project-structure)
-8. [Configuration](#configuration)
-9. [Training Methods](#training-methods)
-10. [Google Colab Integration](#google-colab-integration)
-11. [Troubleshooting](#troubleshooting)
-12. [FAQ](#faq)
-13. [Contributing](#contributing)
-14. [License](#license)
-15. [Acknowledgments](#acknowledgments)
 
 ---
 
