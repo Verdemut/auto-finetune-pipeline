@@ -1,0 +1,46 @@
+dataset_path: "./datasets/my_dataset"
+output_path: "./outputs/my_model"
+logs_path: "./logs"
+checkpoints_path: "./checkpoints"
+
+dataset:
+  image_size: 512
+  caption_column: "caption"
+  use_auto_caption: false
+  validation_split: 0.1
+  augmentation:
+    enabled: true
+    horizontal_flip: true
+    random_rotation: 5
+
+training:
+  method: "auto"
+  num_epochs: 50
+  batch_size: null
+  gradient_accumulation_steps: null
+  learning_rate: null
+  lr_scheduler: "cosine"
+  warmup_steps: 100
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+model:
+  base_model: "runwayml/stable-diffusion-v1-5"
+  use_fp16: null
+  enable_xformers: null
+  enable_attention_slicing: true
+  enable_vae_slicing: true
+  fallback_models:
+    - "CompVis/stable-diffusion-v1-4"
+    - "stabilityai/stable-diffusion-2-1"
+
+export:
+  save_checkpoints: true
+  save_checkpoints_every: 5
+  save_full_model: true
+  generate_examples: 5
+
+logging:
+  log_every: 10
+  tensorboard: false
+  wandb: false

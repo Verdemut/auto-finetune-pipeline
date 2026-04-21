@@ -1,0 +1,9 @@
+# requirements-cuda.txt - Для NVIDIA GPU
+
+--index-url https://download.pytorch.org/whl/cu118
+torch>=2.0.0
+torchvision>=0.15.0
+xformers>=0.0.22
+
+# Rest from main requirements
+-r requirements.txt
