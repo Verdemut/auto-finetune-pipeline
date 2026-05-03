@@ -306,16 +306,16 @@ class PlatformAwareGUI:
                 
                 with gr.TabItem(self._("tab_colab")):
                     self._create_colab_export_ui()
-        
-        def restart_app(lang_selected):
-            new_lang = "ru" if lang_selected == self._("lang_ru") else "en"
-            with open("language_pref.txt", "w") as f:
-                f.write(new_lang)
-            python = sys.executable
-            subprocess.Popen([python, __file__])
-            os._exit(0)
-        
-        restart_btn.click(restart_app, inputs=[lang_selector], outputs=[])
+            
+            def restart_app(lang_selected):
+                new_lang = "ru" if lang_selected == self._("lang_ru") else "en"
+                with open("language_pref.txt", "w") as f:
+                    f.write(new_lang)
+                python = sys.executable
+                subprocess.Popen([python, __file__])
+                os._exit(0)
+            
+            restart_btn.click(restart_app, inputs=[lang_selector], outputs=[])
         
         return demo
     
