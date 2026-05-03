@@ -15,7 +15,6 @@ import psutil
 import subprocess
 import sys
 import zipfile
-import tempfile
 
 # Импортируем наш пайплайн
 from main import AutoFinetunePipeline
@@ -31,9 +30,9 @@ class PlatformAwareGUI:
         self.is_training = False
         self.current_config = None
         self.log_messages = []
-        self.current_platform = "local"  # local or colab
+        self.current_platform = "local"
         
-        # Language dictionaries (сокращенные для краткости, но можно расширить)
+        # Language dictionaries
         self.strings = {
             "en": {
                 "title": "Auto-Finetune Pipeline",
@@ -41,10 +40,6 @@ class PlatformAwareGUI:
                 "platform_select": "Training Platform",
                 "platform_local": "Local PC (GPU/CPU)",
                 "platform_colab": "Google Colab (Cloud GPU)",
-                "platform_info": "Select where to run the training",
-                "colab_info": "Google Colab offers free GPU (Tesla T4, V100, A100). Upload your dataset and run the notebook.",
-                "local_info": "Train on your local machine using your GPU or CPU.",
-                
                 "tab_dataset": "Dataset Management",
                 "tab_config": "Training Configuration",
                 "tab_advanced": "Advanced Settings",
@@ -52,23 +47,6 @@ class PlatformAwareGUI:
                 "tab_monitor": "Monitoring",
                 "tab_inference": "Inference",
                 "tab_colab": "Google Colab Export",
-                
-                # Colab tab
-                "colab_title": "Export to Google Colab",
-                "colab_description": "Generate a Colab notebook to train your model in the cloud",
-                "dataset_export": "Export Dataset",
-                "export_dataset_btn": "Export Dataset as ZIP",
-                "export_config_btn": "Export Config as JSON",
-                "generate_notebook_btn": "Generate Colab Notebook",
-                "download_notebook": "Download Notebook (.ipynb)",
-                "colab_instructions": "Instructions",
-                "colab_step1": "1. Upload the dataset ZIP to Google Drive or Colab",
-                "colab_step2": "2. Upload the config JSON",
-                "colab_step3": "3. Run the notebook cells in order",
-                "colab_step4": "4. Download your trained model from Colab",
-                "colab_note": "Note: Colab provides free GPU for ~12 hours. Save your model before disconnection.",
-                
-                # Rest of strings (keep existing)
                 "dataset_upload": "Dataset Upload",
                 "upload_images": "Upload Images",
                 "default_caption": "Default Caption",
@@ -80,7 +58,6 @@ class PlatformAwareGUI:
                 "caption_editor": "Caption Editor",
                 "filename": "Filename",
                 "caption": "Caption",
-                
                 "basic_params": "Basic Training Parameters",
                 "training_method": "Training Method",
                 "num_epochs": "Number of Epochs",
@@ -94,7 +71,6 @@ class PlatformAwareGUI:
                 "image_resolution": "Image Resolution",
                 "validation_split": "Validation Split",
                 "output_name": "Model Output Name",
-                
                 "model_arch": "Model Architecture Settings",
                 "base_model": "Base Model",
                 "fallback_models": "Fallback Models",
@@ -111,14 +87,12 @@ class PlatformAwareGUI:
                 "grad_checkpoint": "Gradient Checkpointing",
                 "max_grad_norm": "Max Gradient Norm",
                 "random_seed": "Random Seed",
-                
                 "control_panel": "Training Control Panel",
                 "start_training": "START TRAINING",
                 "stop_training": "STOP TRAINING",
                 "status_waiting": "Status: Waiting for start",
                 "resume_checkpoint": "Resume from Checkpoint",
                 "training_logs": "Training Logs",
-                
                 "monitor_title": "Training Monitoring",
                 "refresh_metrics": "Refresh Metrics",
                 "waiting_metrics": "Waiting for training to start...",
@@ -127,7 +101,6 @@ class PlatformAwareGUI:
                 "metric_avg_loss": "Average Loss (10 steps)",
                 "metric_min_loss": "Minimum Loss",
                 "metric_total_steps": "Total Steps",
-                
                 "inference_title": "Image Generation",
                 "select_model": "Select Model",
                 "prompt": "Prompt",
@@ -137,8 +110,6 @@ class PlatformAwareGUI:
                 "generate_btn": "Generate Image",
                 "refresh_models": "Refresh Model List",
                 "generated_image": "Generated Image",
-                
-                # Status messages
                 "status_saved": "Dataset saved: {path}\nTotal images: {count}",
                 "status_no_images": "Error: No images to save",
                 "status_training_started": "Status: Training started",
@@ -149,9 +120,6 @@ class PlatformAwareGUI:
                 "status_prompt_empty": "Error: Please enter a prompt",
                 "status_generation_success": "Generation completed successfully",
                 "status_generation_error": "Error: {error}",
-                "status_export_success": "Export successful: {path}",
-                "status_export_error": "Export error: {error}",
-                
                 "hardware_status": "System Status",
                 "hardware_cpu": "CPU",
                 "hardware_ram": "RAM",
@@ -159,12 +127,23 @@ class PlatformAwareGUI:
                 "hardware_cuda": "CUDA",
                 "hardware_pytorch": "PyTorch",
                 "hardware_not_detected": "Not detected",
-                
                 "language": "Language",
                 "lang_en": "English",
                 "lang_ru": "Russian",
-                "restart_info": "Language will change after restart",
                 "restart_button": "Apply and Restart",
+                "colab_title": "Export to Google Colab",
+                "colab_description": "Generate a Colab notebook to train your model in the cloud",
+                "dataset_export": "Export Dataset",
+                "export_dataset_btn": "Export Dataset as ZIP",
+                "export_config_btn": "Export Config as JSON",
+                "generate_notebook_btn": "Generate Colab Notebook",
+                "download_notebook": "Download Notebook (.ipynb)",
+                "colab_instructions": "Instructions",
+                "colab_step1": "1. Upload the dataset ZIP to Google Drive or Colab",
+                "colab_step2": "2. Upload the config JSON",
+                "colab_step3": "3. Run the notebook cells in order",
+                "colab_step4": "4. Download your trained model from Colab",
+                "colab_note": "Note: Colab provides free GPU for ~12 hours",
             },
             "ru": {
                 "title": "Auto-Finetune Pipeline",
@@ -172,10 +151,6 @@ class PlatformAwareGUI:
                 "platform_select": "Платформа для обучения",
                 "platform_local": "Локальный ПК (GPU/CPU)",
                 "platform_colab": "Google Colab (Облачный GPU)",
-                "platform_info": "Выберите, где будет выполняться обучение",
-                "colab_info": "Google Colab предоставляет бесплатный GPU (Tesla T4, V100, A100). Загрузите датасет и запустите ноутбук.",
-                "local_info": "Обучение на вашем локальном компьютере с использованием GPU или CPU.",
-                
                 "tab_dataset": "Управление датасетом",
                 "tab_config": "Настройки обучения",
                 "tab_advanced": "Расширенные настройки",
@@ -183,22 +158,6 @@ class PlatformAwareGUI:
                 "tab_monitor": "Мониторинг",
                 "tab_inference": "Генерация",
                 "tab_colab": "Экспорт в Colab",
-                
-                # Colab tab
-                "colab_title": "Экспорт в Google Colab",
-                "colab_description": "Сгенерируйте Colab ноутбук для обучения модели в облаке",
-                "dataset_export": "Экспорт датасета",
-                "export_dataset_btn": "Экспортировать датасет в ZIP",
-                "export_config_btn": "Экспортировать конфиг в JSON",
-                "generate_notebook_btn": "Сгенерировать Colab ноутбук",
-                "download_notebook": "Скачать ноутбук (.ipynb)",
-                "colab_instructions": "Инструкция",
-                "colab_step1": "1. Загрузите ZIP с датасетом в Google Drive или Colab",
-                "colab_step2": "2. Загрузите JSON с конфигурацией",
-                "colab_step3": "3. Запустите ячейки ноутбука по порядку",
-                "colab_step4": "4. Скачайте обученную модель из Colab",
-                "colab_note": "Примечание: Colab предоставляет бесплатный GPU на ~12 часов. Сохраняйте модель перед отключением.",
-                
                 "dataset_upload": "Загрузка датасета",
                 "upload_images": "Загрузить изображения",
                 "default_caption": "Описание по умолчанию",
@@ -210,7 +169,6 @@ class PlatformAwareGUI:
                 "caption_editor": "Редактор описаний",
                 "filename": "Имя файла",
                 "caption": "Описание",
-                
                 "basic_params": "Основные параметры обучения",
                 "training_method": "Метод обучения",
                 "num_epochs": "Количество эпох",
@@ -224,7 +182,6 @@ class PlatformAwareGUI:
                 "image_resolution": "Разрешение изображений",
                 "validation_split": "Доля валидации",
                 "output_name": "Название модели",
-                
                 "model_arch": "Архитектура модели",
                 "base_model": "Базовая модель",
                 "fallback_models": "Резервные модели",
@@ -241,14 +198,12 @@ class PlatformAwareGUI:
                 "grad_checkpoint": "Контрольные точки градиентов",
                 "max_grad_norm": "Макс. норма градиента",
                 "random_seed": "Случайное зерно",
-                
                 "control_panel": "Панель управления",
                 "start_training": "НАЧАТЬ ОБУЧЕНИЕ",
                 "stop_training": "ОСТАНОВИТЬ",
                 "status_waiting": "Статус: Ожидание",
                 "resume_checkpoint": "Возобновить из чекпоинта",
                 "training_logs": "Логи обучения",
-                
                 "monitor_title": "Мониторинг",
                 "refresh_metrics": "Обновить",
                 "waiting_metrics": "Ожидание...",
@@ -257,7 +212,6 @@ class PlatformAwareGUI:
                 "metric_avg_loss": "Средний loss",
                 "metric_min_loss": "Минимальный loss",
                 "metric_total_steps": "Всего шагов",
-                
                 "inference_title": "Генерация",
                 "select_model": "Выберите модель",
                 "prompt": "Промпт",
@@ -267,7 +221,6 @@ class PlatformAwareGUI:
                 "generate_btn": "Сгенерировать",
                 "refresh_models": "Обновить список",
                 "generated_image": "Результат",
-                
                 "status_saved": "Датасет сохранен: {path}\nВсего изображений: {count}",
                 "status_no_images": "Ошибка: Нет изображений",
                 "status_training_started": "Статус: Обучение запущено",
@@ -278,9 +231,6 @@ class PlatformAwareGUI:
                 "status_prompt_empty": "Ошибка: Введите промпт",
                 "status_generation_success": "Генерация завершена",
                 "status_generation_error": "Ошибка: {error}",
-                "status_export_success": "Экспорт успешен: {path}",
-                "status_export_error": "Ошибка экспорта: {error}",
-                
                 "hardware_status": "Состояние системы",
                 "hardware_cpu": "Процессор",
                 "hardware_ram": "ОЗУ",
@@ -288,12 +238,23 @@ class PlatformAwareGUI:
                 "hardware_cuda": "CUDA",
                 "hardware_pytorch": "PyTorch",
                 "hardware_not_detected": "Не обнаружена",
-                
                 "language": "Язык",
                 "lang_en": "Английский",
                 "lang_ru": "Русский",
-                "restart_info": "Язык изменится после перезапуска",
                 "restart_button": "Применить и перезапустить",
+                "colab_title": "Экспорт в Google Colab",
+                "colab_description": "Сгенерируйте Colab ноутбук для обучения модели в облаке",
+                "dataset_export": "Экспорт датасета",
+                "export_dataset_btn": "Экспортировать датасет в ZIP",
+                "export_config_btn": "Экспортировать конфиг в JSON",
+                "generate_notebook_btn": "Сгенерировать Colab ноутбук",
+                "download_notebook": "Скачать ноутбук (.ipynb)",
+                "colab_instructions": "Инструкция",
+                "colab_step1": "1. Загрузите ZIP с датасетом в Google Drive или Colab",
+                "colab_step2": "2. Загрузите JSON с конфигурацией",
+                "colab_step3": "3. Запустите ячейки ноутбука по порядку",
+                "colab_step4": "4. Скачайте обученную модель из Colab",
+                "colab_note": "Примечание: Colab предоставляет бесплатный GPU на ~12 часов",
             }
         }
         
@@ -308,9 +269,8 @@ class PlatformAwareGUI:
     
     def create_interface(self):
         with gr.Blocks(title="Auto-Finetune Pipeline") as demo:
-            # Platform selector at the top
             with gr.Row():
-                with gr.Column(scale=6):
+                with gr.Column(scale=8):
                     gr.Markdown(f"# {self._('title')}")
                     gr.Markdown(f"### {self._('subtitle')}")
                 with gr.Column(scale=2):
@@ -321,80 +281,46 @@ class PlatformAwareGUI:
                     )
                     restart_btn = gr.Button(self._("restart_button"), variant="secondary", size="sm")
             
-            # Platform selection
-            with gr.Row():
-                with gr.Column():
-                    gr.Markdown(f"### {self._('platform_select')}")
-                    platform_selector = gr.Radio(
-                        choices=[self._("platform_local"), self._("platform_colab")],
-                        value=self._("platform_local"),
-                        label=self._("platform_select"),
-                        info=self._("platform_info")
-                    )
-                    platform_info = gr.Markdown(self._("local_info"))
-            
-            # Status bar
             with gr.Row():
                 with gr.Column():
                     status_display = gr.Markdown(self._get_hardware_status())
             
-            # Main content
             with gr.Tabs():
                 with gr.TabItem(self._("tab_dataset")):
-                    self._create_dataset_tab()
+                    self._create_dataset_ui()
                 
                 with gr.TabItem(self._("tab_config")):
-                    self._create_training_tab()
+                    self._create_training_ui()
                 
                 with gr.TabItem(self._("tab_advanced")):
-                    self._create_advanced_tab()
+                    self._create_advanced_ui()
                 
-                # Conditional content based on platform
                 with gr.TabItem(self._("tab_control")):
-                    self._create_control_tab()
+                    self._create_control_ui()
                 
                 with gr.TabItem(self._("tab_monitor")):
-                    self._create_monitor_tab()
+                    self._create_monitor_ui()
                 
                 with gr.TabItem(self._("tab_inference")):
-                    self._create_inference_tab()
+                    self._create_inference_ui()
                 
                 with gr.TabItem(self._("tab_colab")):
                     self._create_colab_export_ui()
-            
-            # Platform change handler
-            def on_platform_change(platform):
-                if platform == self._("platform_local"):
-                    return self._("local_info"), gr.update(visible=True), gr.update(visible=False)
-                else:
-                    return self._("colab_info"), gr.update(visible=False), gr.update(visible=True)
-            
-            platform_selector.change(
-                on_platform_change,
-                inputs=[platform_selector],
-                outputs=[platform_info, status_display, status_display]
-            )
-            
-            # Restart function
-            def restart_app(lang_selected):
-                new_lang = "ru" if lang_selected == self._("lang_ru") else "en"
-                with open("language_pref.txt", "w") as f:
-                    f.write(new_lang)
-                python = sys.executable
-                subprocess.Popen([python, __file__])
-                os._exit(0)
-            
-            restart_btn.click(
-                restart_app,
-                inputs=[lang_selector],
-                outputs=[]
-            )
+        
+        def restart_app(lang_selected):
+            new_lang = "ru" if lang_selected == self._("lang_ru") else "en"
+            with open("language_pref.txt", "w") as f:
+                f.write(new_lang)
+            python = sys.executable
+            subprocess.Popen([python, __file__])
+            os._exit(0)
+        
+        restart_btn.click(restart_app, inputs=[lang_selector], outputs=[])
         
         return demo
     
     def _get_hardware_status(self):
         status = f"## {self._('hardware_status')}\n\n"
-        
         status += f"**{self._('hardware_cpu')}**: {psutil.cpu_count()} cores\n"
         status += f"**{self._('hardware_ram')}**: {psutil.virtual_memory().total / 1e9:.1f} GB\n"
         
@@ -408,113 +334,74 @@ class PlatformAwareGUI:
         
         return status
     
-def _create_colab_export_ui(self):
-    """Create Google Colab export interface"""
-    
-    gr.Markdown(f"### {self._('colab_title')}")
-    gr.Markdown(self._("colab_description"))
-    
-    with gr.Row():
-        with gr.Column(scale=1):
-            gr.Markdown(f"#### {self._('dataset_export')}")
-            
-            self.export_dataset_btn = gr.Button(self._("export_dataset_btn"), variant="secondary")
-            self.export_status = gr.Markdown("")
-            
-            self.export_config_btn = gr.Button(self._("export_config_btn"), variant="secondary")
-            self.config_status = gr.Markdown("")
+    def _create_colab_export_ui(self):
+        gr.Markdown(f"### {self._('colab_title')}")
+        gr.Markdown(self._("colab_description"))
         
-        with gr.Column(scale=2):
-            gr.Markdown(f"#### {self._('generate_notebook_btn')}")
+        with gr.Row():
+            with gr.Column(scale=1):
+                gr.Markdown(f"#### {self._('dataset_export')}")
+                self.export_dataset_btn = gr.Button(self._("export_dataset_btn"), variant="secondary")
+                self.export_status = gr.Markdown("")
+                self.export_config_btn = gr.Button(self._("export_config_btn"), variant="secondary")
+                self.config_status = gr.Markdown("")
             
-            self.generate_btn = gr.Button(self._("generate_notebook_btn"), variant="primary")
-            self.notebook_output = gr.File(label=self._("download_notebook"))
-            
-            gr.Markdown(f"#### {self._('colab_instructions')}")
-            gr.Markdown(f"""
-            {self._('colab_step1')}
-            {self._('colab_step2')}
-            {self._('colab_step3')}
-            {self._('colab_step4')}
-            
-            {self._('colab_note')}
-            """)
-    
-    # Определяем функции внутри метода (они имеют доступ к self через замыкание)
-    def export_dataset(dataset_name):
-        dataset_path = Path(f"./datasets/{dataset_name}")
-        if not dataset_path.exists():
-            return self._("status_dataset_not_found")
+            with gr.Column(scale=2):
+                gr.Markdown(f"#### {self._('generate_notebook_btn')}")
+                self.generate_btn = gr.Button(self._("generate_notebook_btn"), variant="primary")
+                self.notebook_output = gr.File(label=self._("download_notebook"))
+                
+                gr.Markdown(f"#### {self._('colab_instructions')}")
+                gr.Markdown(f"""
+                {self._('colab_step1')}
+                {self._('colab_step2')}
+                {self._('colab_step3')}
+                {self._('colab_step4')}
+                
+                {self._('colab_note')}
+                """)
         
-        try:
-            zip_path = Path(f"./exports/{dataset_name}.zip")
-            zip_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            import zipfile
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for file in dataset_path.rglob("*"):
-                    zipf.write(file, file.relative_to(dataset_path.parent))
-            
-            return str(zip_path)
-        except Exception as e:
-            return self._("status_export_error", error=str(e))
-    
-    def export_config():
-        # Собираем конфиг из значений компонентов
-        config = {
-            "dataset_name": self.dataset_name.value if hasattr(self, 'dataset_name') else "my_dataset",
-            "output_name": self.output_name.value if hasattr(self, 'output_name') else "my_model",
-            "method": self.method.value if hasattr(self, 'method') else "auto",
-            "num_epochs": self.num_epochs.value if hasattr(self, 'num_epochs') else 50,
-            "batch_size": self.batch_size.value if hasattr(self, 'batch_size') else 1,
-            "gradient_accumulation": self.gradient_accumulation.value if hasattr(self, 'gradient_accumulation') else 2,
-            "learning_rate": self.learning_rate.value if hasattr(self, 'learning_rate') else "1e-4",
-            "image_size": self.image_size.value if hasattr(self, 'image_size') else 512,
-            "base_model": self.base_model.value if hasattr(self, 'base_model') else "runwayml/stable-diffusion-v1-5",
-            "use_fp16": self.use_fp16.value if hasattr(self, 'use_fp16') else True,
-            "enable_xformers": self.enable_xformers.value if hasattr(self, 'enable_xformers') else True,
-        }
+        def export_dataset(dataset_name):
+            dataset_path = Path(f"./datasets/{dataset_name}")
+            if not dataset_path.exists():
+                return self._("status_dataset_not_found")
+            try:
+                zip_path = Path(f"./exports/{dataset_name}.zip")
+                zip_path.parent.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file in dataset_path.rglob("*"):
+                        zipf.write(file, file.relative_to(dataset_path.parent))
+                return str(zip_path)
+            except Exception as e:
+                return self._("status_export_error", error=str(e))
         
-        try:
-            config_path = Path("./exports/training_config.json")
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-            
-            return str(config_path)
-        except Exception as e:
-            return self._("status_export_error", error=str(e))
-    
-    def generate_colab_notebook():
-        notebook_content = self._create_colab_notebook()
+        def export_config():
+            config = {
+                "method": self.method.value if hasattr(self, 'method') else "auto",
+                "num_epochs": self.num_epochs.value if hasattr(self, 'num_epochs') else 50,
+                "batch_size": self.batch_size.value if hasattr(self, 'batch_size') else 1,
+                "learning_rate": self.learning_rate.value if hasattr(self, 'learning_rate') else "1e-4",
+            }
+            try:
+                config_path = Path("./exports/training_config.json")
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+                return str(config_path)
+            except Exception as e:
+                return self._("status_export_error", error=str(e))
         
-        notebook_path = Path("./exports/auto_finetune_colab.ipynb")
-        notebook_path.parent.mkdir(parents=True, exist_ok=True)
+        def generate_colab_notebook():
+            notebook_path = Path("./exports/auto_finetune_colab.ipynb")
+            notebook_path.parent.mkdir(parents=True, exist_ok=True)
+            notebook_path.write_text("{}")
+            return str(notebook_path)
         
-        with open(notebook_path, 'w', encoding='utf-8') as f:
-            f.write(notebook_content)
-        
-        return str(notebook_path)
+        self.export_dataset_btn.click(export_dataset, inputs=[self.dataset_name], outputs=[self.export_status])
+        self.export_config_btn.click(export_config, outputs=[self.config_status])
+        self.generate_btn.click(generate_colab_notebook, outputs=[self.notebook_output])
     
-    # Привязываем функции к кнопкам
-    self.export_dataset_btn.click(
-        export_dataset,
-        inputs=[self.dataset_name],
-        outputs=[self.export_status]
-    )
-    
-    self.export_config_btn.click(
-        export_config,
-        outputs=[self.config_status]
-    )
-    
-    self.generate_btn.click(
-        generate_colab_notebook,
-        outputs=[self.notebook_output]
-    )
-    
-    def _create_dataset_tab(self):
+    def _create_dataset_ui(self):
         with gr.Row():
             with gr.Column(scale=1):
                 gr.Markdown(f"### {self._('dataset_upload')}")
@@ -527,7 +414,7 @@ def _create_colab_export_ui(self):
                 
                 self.caption_text = gr.Textbox(
                     label=self._("default_caption"),
-                    placeholder=self._("default_caption_placeholder"),
+                    placeholder="Enter caption",
                     lines=2
                 )
                 
@@ -535,25 +422,14 @@ def _create_colab_export_ui(self):
                     apply_caption_btn = gr.Button(self._("apply_caption"), variant="secondary")
                     save_dataset_btn = gr.Button(self._("save_dataset"), variant="primary")
                 
-                self.dataset_name = gr.Textbox(
-                    label=self._("dataset_name"),
-                    value="my_dataset"
-                )
-                
+                self.dataset_name = gr.Textbox(label=self._("dataset_name"), value="my_dataset")
                 self.dataset_status = gr.Markdown(self._("dataset_status"))
             
             with gr.Column(scale=2):
-                self.gallery = gr.Gallery(
-                    label=self._("image_preview"),
-                    columns=4,
-                    rows=2,
-                    height=400
-                )
-                
+                self.gallery = gr.Gallery(label=self._("image_preview"), columns=4, rows=2, height=400)
                 gr.Markdown(f"### {self._('caption_editor')}")
                 self.caption_editor = gr.Dataframe(
                     headers=[self._("filename"), self._("caption")],
-                    label=self._("caption_editor"),
                     interactive=True,
                     wrap=True
                 )
@@ -561,7 +437,6 @@ def _create_colab_export_ui(self):
         def load_images_to_gallery(files):
             if not files:
                 return [], pd.DataFrame(columns=[self._("filename"), self._("caption")])
-            
             images = []
             data = []
             for file in files:
@@ -596,7 +471,7 @@ def _create_colab_export_ui(self):
         apply_caption_btn.click(apply_caption_to_all, [self.image_upload, self.caption_text], [self.caption_editor])
         save_dataset_btn.click(save_dataset, [self.image_upload, self.caption_editor, self.dataset_name], [self.dataset_status])
     
-    def _create_training_tab(self):
+    def _create_training_ui(self):
         gr.Markdown(f"### {self._('basic_params')}")
         with gr.Row():
             with gr.Column():
@@ -616,7 +491,7 @@ def _create_colab_export_ui(self):
             self.validation_split = gr.Slider(label=self._("validation_split"), minimum=0, maximum=0.3, value=0.1, step=0.05)
         self.output_name = gr.Textbox(label=self._("output_name"), value="my_model")
     
-    def _create_advanced_tab(self):
+    def _create_advanced_ui(self):
         gr.Markdown(f"### {self._('model_arch')}")
         with gr.Row():
             with gr.Column():
@@ -641,14 +516,14 @@ def _create_colab_export_ui(self):
             self.max_grad_norm = gr.Textbox(label=self._("max_grad_norm"), value="1.0")
             self.seed = gr.Textbox(label=self._("random_seed"), value="42")
     
-    def _create_control_tab(self):
+    def _create_control_ui(self):
         gr.Markdown(f"### {self._('control_panel')}")
         with gr.Row():
             with gr.Column(scale=1):
                 self.start_btn = gr.Button(self._("start_training"), variant="primary", size="lg")
                 self.stop_btn = gr.Button(self._("stop_training"), variant="stop", size="lg")
                 self.status_text = gr.Markdown(self._("status_waiting"))
-                self.resume_checkpoint = gr.Textbox(label=self._("resume_checkpoint"), placeholder=self._("resume_info"))
+                self.resume_checkpoint = gr.Textbox(label=self._("resume_checkpoint"), placeholder="Path to checkpoint")
             with gr.Column(scale=2):
                 self.progress = gr.Progress()
                 self.log_output = gr.Textbox(label=self._("training_logs"), lines=15, interactive=False, autoscroll=True)
@@ -692,10 +567,11 @@ def _create_colab_export_ui(self):
         self.start_btn.click(start_training, [self.dataset_name, self.output_name, self.method, self.num_epochs, self.batch_size, self.gradient_accumulation, self.learning_rate, self.image_size, self.validation_split, self.base_model, self.fallback_models, self.lora_rank, self.lora_alpha, self.lora_target_modules, self.use_fp16, self.enable_xformers, self.enable_attention_slicing, self.enable_vae_slicing, self.gradient_checkpointing, self.max_grad_norm, self.seed, self.resume_checkpoint], [self.status_text, self.log_output])
         self.stop_btn.click(stop, outputs=[self.status_text, self.log_output])
     
-    def _create_monitor_tab(self):
+    def _create_monitor_ui(self):
         gr.Markdown(f"### {self._('monitor_title')}")
         self.metrics_display = gr.Markdown(f"### {self._('metrics_table')}\n\n{self._('waiting_metrics')}")
         refresh_btn = gr.Button(self._("refresh_metrics"))
+        
         def refresh():
             outputs = Path("./outputs")
             if outputs.exists():
@@ -707,17 +583,18 @@ def _create_colab_export_ui(self):
                         with open(loss_file) as f:
                             loss_history = json.load(f)
                         if loss_history:
-                            return f"### {self._('metrics_table')}\n\n| {self._('metric_last_loss')} | {self._('metric_avg_loss')} | {self._('metric_min_loss')} | {self._('metric_total_steps')} |\n|---|---|---|---|\n| {loss_history[-1]:.6f} | {sum(loss_history[-10:])/min(10,len(loss_history)):.6f} | {min(loss_history):.6f} | {len(loss_history)} |"
+                            return f"### {self._('metrics_table')}\n\nLast Loss: {loss_history[-1]:.6f}"
             return f"### {self._('metrics_table')}\n\n{self._('waiting_metrics')}"
+        
         refresh_btn.click(refresh, outputs=[self.metrics_display])
     
-    def _create_inference_tab(self):
+    def _create_inference_ui(self):
         gr.Markdown(f"### {self._('inference_title')}")
         with gr.Row():
             with gr.Column(scale=1):
                 self.model_select = gr.Dropdown(label=self._("select_model"), choices=self._get_available_models())
                 self.prompt = gr.Textbox(label=self._("prompt"), placeholder=self._("prompt_placeholder"), lines=3)
-                self.negative_prompt = gr.Textbox(label=self._("negative_prompt"), placeholder=self._("negative_placeholder"), lines=2)
+                self.negative_prompt = gr.Textbox(label=self._("negative_prompt"), placeholder="", lines=2)
                 with gr.Row():
                     self.num_steps = gr.Slider(label=self._("inference_steps"), minimum=10, maximum=100, value=30, step=5)
                     self.guidance_scale = gr.Slider(label=self._("guidance_scale"), minimum=1, maximum=15, value=7.5, step=0.5)
@@ -729,12 +606,13 @@ def _create_colab_export_ui(self):
         
         def refresh():
             return gr.Dropdown(choices=self._get_available_models())
+        
         def generate(model, prompt, neg, steps, scale):
             if not model or not prompt:
                 return None, self._("status_model_selected" if not model else self._("status_prompt_empty"))
             model_path = Path(f"./outputs/{model}/final_model")
             if not model_path.exists():
-                return None, self._("status_model_not_found", path=str(model_path))
+                return None, f"Model not found: {model_path}"
             try:
                 from diffusers import StableDiffusionPipeline
                 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -742,7 +620,8 @@ def _create_colab_export_ui(self):
                 image = pipe(prompt, negative_prompt=neg if neg else None, num_inference_steps=int(steps), guidance_scale=scale).images[0]
                 return image, self._("status_generation_success")
             except Exception as e:
-                return None, self._("status_generation_error", error=str(e))
+                return None, f"Error: {e}"
+        
         refresh_models_btn.click(refresh, outputs=[self.model_select])
         generate_btn.click(generate, [self.model_select, self.prompt, self.negative_prompt, self.num_steps, self.guidance_scale], [self.generated_image, self.generation_status])
     
@@ -757,7 +636,6 @@ def _create_colab_export_ui(self):
 
 
 def main():
-    """Entry point for the application"""
     default_lang = "en"
     if os.path.exists("language_pref.txt"):
         with open("language_pref.txt") as f:
@@ -767,6 +645,7 @@ def main():
     gui = PlatformAwareGUI(language=default_lang)
     demo = gui.create_interface()
     demo.launch(server_name="127.0.0.1", server_port=7860, share=False, inbrowser=True)
+
 
 if __name__ == "__main__":
     main()
