@@ -391,11 +391,10 @@ class PlatformAwareGUI:
             except Exception as e:
                 return self._("status_export_error", error=str(e))
         
-        def generate_colab_notebook(self):
+        def _create_colab_notebook(self):
             notebook_path = Path("./exports/auto_finetune_colab.ipynb")
             notebook_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Создаём полноценный JSON для Jupyter Notebook
             notebook_content = {
                 "cells": [
                     {
@@ -404,7 +403,13 @@ class PlatformAwareGUI:
                         "source": [
                             "# Auto-Finetune Pipeline for Google Colab\n",
                             "\n",
-                            "This notebook will train a Stable Diffusion model on your custom dataset.\n"
+                            "This notebook will train a Stable Diffusion model on your custom dataset.\n",
+                            "\n",
+                            "## Setup\n",
+                            "\n",
+                            "First, enable GPU acceleration:\n",
+                            "- Runtime → Change runtime type → T4 GPU\n",
+                            "- Ensure you have at least 15GB VRAM"
                         ]
                     },
                     {
@@ -412,9 +417,23 @@ class PlatformAwareGUI:
                         "metadata": {},
                         "source": [
                             "import torch\n",
+                            "import os\n",
+                            "\n",
+                            "# Check GPU\n",
                             "print(f\"CUDA available: {torch.cuda.is_available()}\")\n",
                             "if torch.cuda.is_available():\n",
-                            "    print(f\"GPU: {torch.cuda.get_device_name(0)}\")"
+                            "    print(f\"GPU: {torch.cuda.get_device_name(0)}\")\n",
+                            "    vram = torch.cuda.get_device_properties(0).total_memory / 1e9\n",
+                            "    print(f\"VRAM: {vram:.1f} GB\")\n",
+                            "    \n",
+                            "    if vram < 12:\n",
+                            "        print(\"WARNING: Limited VRAM. Training may fail.\")\n",
+                            "        print(\"Consider using T4 GPU: Runtime → Change runtime type → T4 GPU\")\n",
+                            "    \n",
+                            "    # Memory optimization setting\n",
+                            "    os.environ[\"PYTORCH_CUDA_ALLOC_CONF\"] = \"expandable_segments:True\"\n",
+                            "else:\n",
+                            "    print(\"ERROR: GPU not found. Please enable GPU in Runtime → Change runtime type\")"
                         ],
                         "execution_count": None,
                         "outputs": []
@@ -425,7 +444,10 @@ class PlatformAwareGUI:
                         "source": [
                             "!pip install -q diffusers transformers accelerate datasets\n",
                             "!pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n",
-                            "!pip install -q gradio pillow numpy pandas pyyaml tqdm"
+                            "!pip install -q gradio pillow numpy pandas pyyaml tqdm\n",
+                            "!pip install -q xformers\n",
+                            "\n",
+                            "print(\"All packages installed successfully!\")"
                         ],
                         "execution_count": None,
                         "outputs": []
@@ -460,12 +482,22 @@ class PlatformAwareGUI:
                             "print(\"\\nUpload config JSON file...\")\n",
                             "uploaded = files.upload()\n",
                             "\n",
-                            "config = None\n",
+                            "config = {}\n",
                             "for filename in uploaded.keys():\n",
                             "    if filename.endswith('.json'):\n",
                             "        with open(filename, 'r') as f:\n",
                             "            config = json.load(f)\n",
                             "        print(f\"Config loaded from {filename}\")\n",
+                            "\n",
+                            "if not config:\n",
+                            "    config = {\n",
+                            "        \"method\": \"lora\",\n",
+                            "        \"num_epochs\": 10,\n",
+                            "        \"batch_size\": 1,\n",
+                            "        \"learning_rate\": \"1e-4\",\n",
+                            "        \"image_size\": 384\n",
+                            "    }\n",
+                            "    print(\"Using default configuration\")\n",
                             "\n",
                             "print(\"\\nFiles uploaded successfully!\")"
                         ],
@@ -483,19 +515,22 @@ class PlatformAwareGUI:
                         "cell_type": "code",
                         "metadata": {},
                         "source": [
-                            "if config:\n",
-                            "    print(\"Training Configuration:\")\n",
-                            "    for key, value in config.items():\n",
-                            "        print(f\"  {key}: {value}\")\n",
-                            "else:\n",
-                            "    print(\"Using default configuration\")\n",
-                            "    config = {\n",
-                            "        \"method\": \"lora\",\n",
-                            "        \"num_epochs\": 50,\n",
-                            "        \"batch_size\": 1,\n",
-                            "        \"learning_rate\": \"1e-4\",\n",
-                            "        \"image_size\": 512\n",
-                            "    }"
+                            "print(\"Training Configuration:\")\n",
+                            "for key, value in config.items():\n",
+                            "    print(f\"  {key}: {value}\")\n",
+                            "\n",
+                            "# Hyperparameters with memory optimization\n",
+                            "BATCH_SIZE = config.get('batch_size', 1)\n",
+                            "IMAGE_SIZE = config.get('image_size', 384)\n",
+                            "NUM_EPOCHS = config.get('num_epochs', 10)\n",
+                            "LEARNING_RATE = float(config.get('learning_rate', '1e-4'))\n",
+                            "GRADIENT_ACCUMULATION_STEPS = 4\n",
+                            "\n",
+                            "print(f\"\\nOptimized settings:\")\n",
+                            "print(f\"  Batch size: {BATCH_SIZE}\")\n",
+                            "print(f\"  Image size: {IMAGE_SIZE}x{IMAGE_SIZE}\")\n",
+                            "print(f\"  Gradient accumulation: {GRADIENT_ACCUMULATION_STEPS}\")\n",
+                            "print(f\"  Effective batch size: {BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS}\")"
                         ],
                         "execution_count": None,
                         "outputs": []
@@ -504,7 +539,7 @@ class PlatformAwareGUI:
                         "cell_type": "markdown",
                         "metadata": {},
                         "source": [
-                            "## Load and Train Model"
+                            "## Load and Train Model (Optimized for Colab)"
                         ]
                     },
                     {
@@ -519,29 +554,18 @@ class PlatformAwareGUI:
                             "import pandas as pd\n",
                             "from pathlib import Path\n",
                             "\n",
-                            "# Find dataset folder\n",
-                            "DATASET_PATH = Path(\"./dataset\")\n",
-                            "OUTPUT_PATH = Path(\"./outputs/model\")\n",
-                            "OUTPUT_PATH.mkdir(parents=True, exist_ok=True)\n",
+                            "# Clear cache before training\n",
+                            "torch.cuda.empty_cache()\n",
+                            "torch.cuda.reset_peak_memory_stats()\n",
                             "\n",
-                            "# Find actual dataset folder\n",
-                            "dataset_folder = None\n",
-                            "for item in DATASET_PATH.iterdir():\n",
-                            "    if item.is_dir():\n",
-                            "        dataset_folder = item\n",
-                            "        break\n",
-                            "\n",
-                            "if dataset_folder is None:\n",
-                            "    dataset_folder = DATASET_PATH\n",
-                            "\n",
-                            "print(f\"Dataset folder: {dataset_folder}\")\n",
+                            "print(f\"Available VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB\")\n",
                             "\n",
                             "# Dataset class\n",
                             "class SimpleDataset(Dataset):\n",
                             "    def __init__(self, folder):\n",
                             "        self.images = list(folder.glob(\"*.jpg\")) + list(folder.glob(\"*.png\"))\n",
                             "        self.transform = transforms.Compose([\n",
-                            "            transforms.Resize((512, 512)),\n",
+                            "            transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),\n",
                             "            transforms.ToTensor(),\n",
                             "            transforms.Normalize([0.5], [0.5])\n",
                             "        ])\n",
@@ -562,19 +586,45 @@ class PlatformAwareGUI:
                             "        caption = self.captions.get(name, f\"image_{name}\")\n",
                             "        return {\"pixel_values\": img, \"caption\": caption}\n",
                             "\n",
+                            "# Find dataset folder\n",
+                            "DATASET_PATH = Path(\"./dataset\")\n",
+                            "dataset_folder = None\n",
+                            "for item in DATASET_PATH.iterdir():\n",
+                            "    if item.is_dir():\n",
+                            "        dataset_folder = item\n",
+                            "        break\n",
+                            "\n",
+                            "if dataset_folder is None:\n",
+                            "    dataset_folder = DATASET_PATH\n",
+                            "\n",
+                            "print(f\"Dataset folder: {dataset_folder}\")\n",
+                            "\n",
                             "# Load dataset\n",
                             "dataset = SimpleDataset(dataset_folder)\n",
-                            "dataloader = DataLoader(dataset, batch_size=1, shuffle=True)\n",
+                            "dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)\n",
                             "print(f\"Loaded {len(dataset)} images\")\n",
                             "\n",
                             "# Load model\n",
                             "print(\"Loading Stable Diffusion model...\")\n",
                             "device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n",
+                            "\n",
                             "pipe = StableDiffusionPipeline.from_pretrained(\n",
                             "    \"runwayml/stable-diffusion-v1-5\",\n",
-                            "    torch_dtype=torch.float32,\n",
-                            "    safety_checker=None\n",
+                            "    torch_dtype=torch.float16,\n",
+                            "    safety_checker=None,\n",
+                            "    requires_safety_checker=False\n",
                             ").to(device)\n",
+                            "\n",
+                            "# Memory optimizations\n",
+                            "print(\"Applying memory optimizations...\")\n",
+                            "pipe.enable_attention_slicing()\n",
+                            "pipe.enable_vae_slicing()\n",
+                            "\n",
+                            "try:\n",
+                            "    pipe.enable_xformers_memory_efficient_attention()\n",
+                            "    print(\"xFormers enabled\")\n",
+                            "except:\n",
+                            "    print(\"xFormers not available\")\n",
                             "\n",
                             "# Freeze components\n",
                             "for param in pipe.text_encoder.parameters():\n",
@@ -583,54 +633,86 @@ class PlatformAwareGUI:
                             "    param.requires_grad = False\n",
                             "\n",
                             "# Optimizer\n",
-                            "optimizer = torch.optim.AdamW(pipe.unet.parameters(), lr=1e-4)\n",
+                            "optimizer = torch.optim.AdamW(pipe.unet.parameters(), lr=LEARNING_RATE)\n",
                             "noise_scheduler = DDPMScheduler.from_pretrained(\n",
                             "    \"runwayml/stable-diffusion-v1-5\",\n",
                             "    subfolder=\"scheduler\"\n",
                             ")\n",
                             "\n",
-                            "# Training\n",
-                            "num_epochs = config.get('num_epochs', 10)\n",
-                            "print(f\"\\nStarting training for {num_epochs} epochs...\")\n",
+                            "print(f\"\\nStarting training for {NUM_EPOCHS} epochs...\")\n",
+                            "print(f\"GPU memory before training: {torch.cuda.memory_allocated() / 1e9:.2f} GB\")\n",
                             "\n",
-                            "for epoch in range(num_epochs):\n",
+                            "# Training loop\n",
+                            "for epoch in range(NUM_EPOCHS):\n",
                             "    total_loss = 0\n",
-                            "    for batch in dataloader:\n",
-                            "        pixel_values = batch[\"pixel_values\"].to(device)\n",
-                            "        captions = batch[\"caption\"]\n",
+                            "    optimizer.zero_grad()\n",
+                            "    \n",
+                            "    for batch_idx, batch in enumerate(dataloader):\n",
+                            "        try:\n",
+                            "            pixel_values = batch[\"pixel_values\"].to(device).half()\n",
+                            "            captions = batch[\"caption\"]\n",
+                            "            \n",
+                            "            # Encode text\n",
+                            "            text_inputs = pipe.tokenizer(\n",
+                            "                captions,\n",
+                            "                padding=\"max_length\",\n",
+                            "                max_length=pipe.tokenizer.model_max_length,\n",
+                            "                truncation=True,\n",
+                            "                return_tensors=\"pt\"\n",
+                            "            ).to(device)\n",
+                            "            \n",
+                            "            with torch.no_grad():\n",
+                            "                encoder_hidden_states = pipe.text_encoder(text_inputs.input_ids)[0]\n",
+                            "                latents = pipe.vae.encode(pixel_values).latent_dist.sample()\n",
+                            "                latents = latents * pipe.vae.config.scaling_factor\n",
+                            "                latents = latents.half()\n",
+                            "            \n",
+                            "            # Add noise\n",
+                            "            noise = torch.randn_like(latents)\n",
+                            "            timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps,\n",
+                            "                                      (latents.shape[0],), device=device).long()\n",
+                            "            noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)\n",
+                            "            \n",
+                            "            # Predict noise\n",
+                            "            noise_pred = pipe.unet(noisy_latents, timesteps, encoder_hidden_states).sample\n",
+                            "            loss = torch.nn.functional.mse_loss(noise_pred.float(), noise.float())\n",
+                            "            \n",
+                            "            # Gradient accumulation\n",
+                            "            loss = loss / GRADIENT_ACCUMULATION_STEPS\n",
+                            "            loss.backward()\n",
+                            "            \n",
+                            "            if (batch_idx + 1) % GRADIENT_ACCUMULATION_STEPS == 0:\n",
+                            "                optimizer.step()\n",
+                            "                optimizer.zero_grad()\n",
+                            "            \n",
+                            "            total_loss += loss.item() * GRADIENT_ACCUMULATION_STEPS\n",
+                            "            \n",
+                            "            # Progress update\n",
+                            "            if (batch_idx + 1) % 5 == 0:\n",
+                            "                mem_used = torch.cuda.memory_allocated() / 1e9\n",
+                            "                print(f\"Epoch {epoch+1}/{NUM_EPOCHS} | Batch {batch_idx+1}/{len(dataloader)} | Loss: {loss.item() * GRADIENT_ACCUMULATION_STEPS:.4f} | VRAM: {mem_used:.2f} GB\")\n",
                             "        \n",
-                            "        text_inputs = pipe.tokenizer(\n",
-                            "            captions,\n",
-                            "            padding=\"max_length\",\n",
-                            "            max_length=pipe.tokenizer.model_max_length,\n",
-                            "            truncation=True,\n",
-                            "            return_tensors=\"pt\"\n",
-                            "        ).to(device)\n",
-                            "        \n",
-                            "        with torch.no_grad():\n",
-                            "            encoder_hidden_states = pipe.text_encoder(text_inputs.input_ids)[0]\n",
-                            "            latents = pipe.vae.encode(pixel_values).latent_dist.sample()\n",
-                            "            latents = latents * pipe.vae.config.scaling_factor\n",
-                            "        \n",
-                            "        noise = torch.randn_like(latents)\n",
-                            "        timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps,\n",
-                            "                                  (latents.shape[0],), device=device).long()\n",
-                            "        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)\n",
-                            "        \n",
-                            "        noise_pred = pipe.unet(noisy_latents, timesteps, encoder_hidden_states).sample\n",
-                            "        loss = torch.nn.functional.mse_loss(noise_pred, noise)\n",
-                            "        \n",
-                            "        optimizer.zero_grad()\n",
-                            "        loss.backward()\n",
-                            "        optimizer.step()\n",
-                            "        \n",
-                            "        total_loss += loss.item()\n",
+                            "        except RuntimeError as e:\n",
+                            "            if \"out of memory\" in str(e):\n",
+                            "                print(f\"\\nERROR: Out of memory at batch {batch_idx+1}\")\n",
+                            "                print(\"Try reducing IMAGE_SIZE to 256 or use T4 GPU\")\n",
+                            "                torch.cuda.empty_cache()\n",
+                            "                break\n",
+                            "            else:\n",
+                            "                raise e\n",
                             "    \n",
                             "    avg_loss = total_loss / len(dataloader)\n",
-                            "    print(f\"Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f}\")\n",
+                            "    print(f\"Epoch {epoch+1}/{NUM_EPOCHS} completed | Average loss: {avg_loss:.4f}\")\n",
+                            "    \n",
+                            "    # Clear cache between epochs\n",
+                            "    torch.cuda.empty_cache()\n",
+                            "\n",
+                            "print(\"\\nTraining completed successfully!\")\n",
                             "\n",
                             "# Save model\n",
-                            "print(\"\\nSaving model...\")\n",
+                            "print(\"Saving model...\")\n",
+                            "OUTPUT_PATH = Path(\"./outputs/model\")\n",
+                            "OUTPUT_PATH.mkdir(parents=True, exist_ok=True)\n",
                             "pipe.unet.save_pretrained(OUTPUT_PATH / \"unet\")\n",
                             "print(f\"Model saved to {OUTPUT_PATH}\")\n",
                             "\n",
@@ -645,7 +727,9 @@ class PlatformAwareGUI:
                         "cell_type": "markdown",
                         "metadata": {},
                         "source": [
-                            "## Download Trained Model"
+                            "## Download Trained Model\n",
+                            "\n",
+                            "Run the cell below to download your trained model."
                         ]
                     },
                     {
@@ -658,6 +742,23 @@ class PlatformAwareGUI:
                         ],
                         "execution_count": None,
                         "outputs": []
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "## Troubleshooting\n",
+                            "\n",
+                            "### If you see \"CUDA out of memory\":\n",
+                            "1. Change GPU type: Runtime → Change runtime type → T4 GPU\n",
+                            "2. Reduce IMAGE_SIZE to 256 in config\n",
+                            "3. Reduce num_epochs to 5\n",
+                            "\n",
+                            "### If training is too slow:\n",
+                            "1. Use T4 GPU (free tier)\n",
+                            "2. Reduce IMAGE_SIZE to 256\n",
+                            "3. Enable xFormers in the training cell"
+                        ]
                     }
                 ],
                 "metadata": {
@@ -689,16 +790,27 @@ class PlatformAwareGUI:
                 "nbformat_minor": 0
             }
             
-            # Сохраняем как JSON с правильной структурой
             import json
             with open(notebook_path, 'w', encoding='utf-8') as f:
                 json.dump(notebook_content, f, indent=1, ensure_ascii=False)
             
             return str(notebook_path)
         
-        self.export_dataset_btn.click(export_dataset, inputs=[self.dataset_name], outputs=[self.export_status])
-        self.export_config_btn.click(export_config, outputs=[self.config_status])
-        self.generate_btn.click(generate_colab_notebook, outputs=[self.notebook_output])
+        self.export_dataset_btn.click(
+            export_dataset, 
+            inputs=[self.dataset_name], 
+            outputs=[self.export_status]
+        )
+        
+        self.export_config_btn.click(
+            export_config, 
+            outputs=[self.config_status]
+        )
+        
+        self.generate_btn.click(
+            _create_colab_notebook, 
+            outputs=[self.notebook_output]
+        )
     
     def _create_dataset_ui(self):
         with gr.Row():
