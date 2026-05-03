@@ -341,23 +341,23 @@ class PlatformAwareGUI:
             # Main content
             with gr.Tabs():
                 with gr.TabItem(self._("tab_dataset")):
-                    self._create_dataset_tab()
+                    self._create_dataset_ui()
                 
                 with gr.TabItem(self._("tab_config")):
-                    self._create_training_tab()
+                    self._create_training_ui()
                 
                 with gr.TabItem(self._("tab_advanced")):
-                    self._create_advanced_tab()
+                    self._create_advanced_ui()
                 
                 # Conditional content based on platform
                 with gr.TabItem(self._("tab_control")):
-                    self._create_control_tab()
+                    self._create_control_ui()
                 
                 with gr.TabItem(self._("tab_monitor")):
-                    self._create_monitor_tab()
+                    self._create_monitor_ui()
                 
                 with gr.TabItem(self._("tab_inference")):
-                    self._create_inference_tab()
+                    self._create_inference_ui()
                 
                 with gr.TabItem(self._("tab_colab")):
                     self._create_colab_export_ui()
@@ -514,7 +514,7 @@ def _create_colab_export_ui(self):
         outputs=[self.notebook_output]
     )
     
-    def _create_dataset_tab(self):
+    def _create_dataset_ui(self):
         with gr.Row():
             with gr.Column(scale=1):
                 gr.Markdown(f"### {self._('dataset_upload')}")
@@ -596,7 +596,7 @@ def _create_colab_export_ui(self):
         apply_caption_btn.click(apply_caption_to_all, [self.image_upload, self.caption_text], [self.caption_editor])
         save_dataset_btn.click(save_dataset, [self.image_upload, self.caption_editor, self.dataset_name], [self.dataset_status])
     
-    def _create_training_tab(self):
+    def _create_training_ui(self):
         gr.Markdown(f"### {self._('basic_params')}")
         with gr.Row():
             with gr.Column():
@@ -616,7 +616,7 @@ def _create_colab_export_ui(self):
             self.validation_split = gr.Slider(label=self._("validation_split"), minimum=0, maximum=0.3, value=0.1, step=0.05)
         self.output_name = gr.Textbox(label=self._("output_name"), value="my_model")
     
-    def _create_advanced_tab(self):
+    def _create_advanced_ui(self):
         gr.Markdown(f"### {self._('model_arch')}")
         with gr.Row():
             with gr.Column():
@@ -641,7 +641,7 @@ def _create_colab_export_ui(self):
             self.max_grad_norm = gr.Textbox(label=self._("max_grad_norm"), value="1.0")
             self.seed = gr.Textbox(label=self._("random_seed"), value="42")
     
-    def _create_control_tab(self):
+    def _create_control_ui(self):
         gr.Markdown(f"### {self._('control_panel')}")
         with gr.Row():
             with gr.Column(scale=1):
@@ -692,7 +692,7 @@ def _create_colab_export_ui(self):
         self.start_btn.click(start_training, [self.dataset_name, self.output_name, self.method, self.num_epochs, self.batch_size, self.gradient_accumulation, self.learning_rate, self.image_size, self.validation_split, self.base_model, self.fallback_models, self.lora_rank, self.lora_alpha, self.lora_target_modules, self.use_fp16, self.enable_xformers, self.enable_attention_slicing, self.enable_vae_slicing, self.gradient_checkpointing, self.max_grad_norm, self.seed, self.resume_checkpoint], [self.status_text, self.log_output])
         self.stop_btn.click(stop, outputs=[self.status_text, self.log_output])
     
-    def _create_monitor_tab(self):
+    def _create_monitor_ui(self):
         gr.Markdown(f"### {self._('monitor_title')}")
         self.metrics_display = gr.Markdown(f"### {self._('metrics_table')}\n\n{self._('waiting_metrics')}")
         refresh_btn = gr.Button(self._("refresh_metrics"))
@@ -711,7 +711,7 @@ def _create_colab_export_ui(self):
             return f"### {self._('metrics_table')}\n\n{self._('waiting_metrics')}"
         refresh_btn.click(refresh, outputs=[self.metrics_display])
     
-    def _create_inference_tab(self):
+    def _create_inference_ui(self):
         gr.Markdown(f"### {self._('inference_title')}")
         with gr.Row():
             with gr.Column(scale=1):
