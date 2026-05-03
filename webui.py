@@ -391,10 +391,309 @@ class PlatformAwareGUI:
             except Exception as e:
                 return self._("status_export_error", error=str(e))
         
-        def generate_colab_notebook():
+        def generate_colab_notebook(self):
             notebook_path = Path("./exports/auto_finetune_colab.ipynb")
             notebook_path.parent.mkdir(parents=True, exist_ok=True)
-            notebook_path.write_text("{}")
+            
+            # Создаём полноценный JSON для Jupyter Notebook
+            notebook_content = {
+                "cells": [
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "# Auto-Finetune Pipeline for Google Colab\n",
+                            "\n",
+                            "This notebook will train a Stable Diffusion model on your custom dataset.\n"
+                        ]
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "source": [
+                            "import torch\n",
+                            "print(f\"CUDA available: {torch.cuda.is_available()}\")\n",
+                            "if torch.cuda.is_available():\n",
+                            "    print(f\"GPU: {torch.cuda.get_device_name(0)}\")"
+                        ],
+                        "execution_count": None,
+                        "outputs": []
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "source": [
+                            "!pip install -q diffusers transformers accelerate datasets\n",
+                            "!pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n",
+                            "!pip install -q gradio pillow numpy pandas pyyaml tqdm"
+                        ],
+                        "execution_count": None,
+                        "outputs": []
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "## Upload Dataset\n",
+                            "\n",
+                            "Run the cell below and upload your dataset ZIP file and config JSON."
+                        ]
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "source": [
+                            "from google.colab import files\n",
+                            "import zipfile\n",
+                            "import json\n",
+                            "from pathlib import Path\n",
+                            "\n",
+                            "print(\"Upload dataset ZIP file...\")\n",
+                            "uploaded = files.upload()\n",
+                            "\n",
+                            "for filename in uploaded.keys():\n",
+                            "    if filename.endswith('.zip'):\n",
+                            "        with zipfile.ZipFile(filename, 'r') as zip_ref:\n",
+                            "            zip_ref.extractall('./dataset')\n",
+                            "        print(f\"Dataset extracted to ./dataset\")\n",
+                            "\n",
+                            "print(\"\\nUpload config JSON file...\")\n",
+                            "uploaded = files.upload()\n",
+                            "\n",
+                            "config = None\n",
+                            "for filename in uploaded.keys():\n",
+                            "    if filename.endswith('.json'):\n",
+                            "        with open(filename, 'r') as f:\n",
+                            "            config = json.load(f)\n",
+                            "        print(f\"Config loaded from {filename}\")\n",
+                            "\n",
+                            "print(\"\\nFiles uploaded successfully!\")"
+                        ],
+                        "execution_count": None,
+                        "outputs": []
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "## Training Configuration"
+                        ]
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "source": [
+                            "if config:\n",
+                            "    print(\"Training Configuration:\")\n",
+                            "    for key, value in config.items():\n",
+                            "        print(f\"  {key}: {value}\")\n",
+                            "else:\n",
+                            "    print(\"Using default configuration\")\n",
+                            "    config = {\n",
+                            "        \"method\": \"lora\",\n",
+                            "        \"num_epochs\": 50,\n",
+                            "        \"batch_size\": 1,\n",
+                            "        \"learning_rate\": \"1e-4\",\n",
+                            "        \"image_size\": 512\n",
+                            "    }"
+                        ],
+                        "execution_count": None,
+                        "outputs": []
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "## Load and Train Model"
+                        ]
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "source": [
+                            "import torch\n",
+                            "from diffusers import StableDiffusionPipeline, DDPMScheduler\n",
+                            "from torch.utils.data import Dataset, DataLoader\n",
+                            "from torchvision import transforms\n",
+                            "from PIL import Image\n",
+                            "import pandas as pd\n",
+                            "from pathlib import Path\n",
+                            "\n",
+                            "# Find dataset folder\n",
+                            "DATASET_PATH = Path(\"./dataset\")\n",
+                            "OUTPUT_PATH = Path(\"./outputs/model\")\n",
+                            "OUTPUT_PATH.mkdir(parents=True, exist_ok=True)\n",
+                            "\n",
+                            "# Find actual dataset folder\n",
+                            "dataset_folder = None\n",
+                            "for item in DATASET_PATH.iterdir():\n",
+                            "    if item.is_dir():\n",
+                            "        dataset_folder = item\n",
+                            "        break\n",
+                            "\n",
+                            "if dataset_folder is None:\n",
+                            "    dataset_folder = DATASET_PATH\n",
+                            "\n",
+                            "print(f\"Dataset folder: {dataset_folder}\")\n",
+                            "\n",
+                            "# Dataset class\n",
+                            "class SimpleDataset(Dataset):\n",
+                            "    def __init__(self, folder):\n",
+                            "        self.images = list(folder.glob(\"*.jpg\")) + list(folder.glob(\"*.png\"))\n",
+                            "        self.transform = transforms.Compose([\n",
+                            "            transforms.Resize((512, 512)),\n",
+                            "            transforms.ToTensor(),\n",
+                            "            transforms.Normalize([0.5], [0.5])\n",
+                            "        ])\n",
+                            "        csv_path = folder / \"captions.csv\"\n",
+                            "        if csv_path.exists():\n",
+                            "            df = pd.read_csv(csv_path)\n",
+                            "            self.captions = dict(zip(df['image'].astype(str), df['caption']))\n",
+                            "        else:\n",
+                            "            self.captions = {}\n",
+                            "    \n",
+                            "    def __len__(self):\n",
+                            "        return len(self.images)\n",
+                            "    \n",
+                            "    def __getitem__(self, idx):\n",
+                            "        img = Image.open(self.images[idx]).convert('RGB')\n",
+                            "        img = self.transform(img)\n",
+                            "        name = self.images[idx].stem\n",
+                            "        caption = self.captions.get(name, f\"image_{name}\")\n",
+                            "        return {\"pixel_values\": img, \"caption\": caption}\n",
+                            "\n",
+                            "# Load dataset\n",
+                            "dataset = SimpleDataset(dataset_folder)\n",
+                            "dataloader = DataLoader(dataset, batch_size=1, shuffle=True)\n",
+                            "print(f\"Loaded {len(dataset)} images\")\n",
+                            "\n",
+                            "# Load model\n",
+                            "print(\"Loading Stable Diffusion model...\")\n",
+                            "device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n",
+                            "pipe = StableDiffusionPipeline.from_pretrained(\n",
+                            "    \"runwayml/stable-diffusion-v1-5\",\n",
+                            "    torch_dtype=torch.float32,\n",
+                            "    safety_checker=None\n",
+                            ").to(device)\n",
+                            "\n",
+                            "# Freeze components\n",
+                            "for param in pipe.text_encoder.parameters():\n",
+                            "    param.requires_grad = False\n",
+                            "for param in pipe.vae.parameters():\n",
+                            "    param.requires_grad = False\n",
+                            "\n",
+                            "# Optimizer\n",
+                            "optimizer = torch.optim.AdamW(pipe.unet.parameters(), lr=1e-4)\n",
+                            "noise_scheduler = DDPMScheduler.from_pretrained(\n",
+                            "    \"runwayml/stable-diffusion-v1-5\",\n",
+                            "    subfolder=\"scheduler\"\n",
+                            ")\n",
+                            "\n",
+                            "# Training\n",
+                            "num_epochs = config.get('num_epochs', 10)\n",
+                            "print(f\"\\nStarting training for {num_epochs} epochs...\")\n",
+                            "\n",
+                            "for epoch in range(num_epochs):\n",
+                            "    total_loss = 0\n",
+                            "    for batch in dataloader:\n",
+                            "        pixel_values = batch[\"pixel_values\"].to(device)\n",
+                            "        captions = batch[\"caption\"]\n",
+                            "        \n",
+                            "        text_inputs = pipe.tokenizer(\n",
+                            "            captions,\n",
+                            "            padding=\"max_length\",\n",
+                            "            max_length=pipe.tokenizer.model_max_length,\n",
+                            "            truncation=True,\n",
+                            "            return_tensors=\"pt\"\n",
+                            "        ).to(device)\n",
+                            "        \n",
+                            "        with torch.no_grad():\n",
+                            "            encoder_hidden_states = pipe.text_encoder(text_inputs.input_ids)[0]\n",
+                            "            latents = pipe.vae.encode(pixel_values).latent_dist.sample()\n",
+                            "            latents = latents * pipe.vae.config.scaling_factor\n",
+                            "        \n",
+                            "        noise = torch.randn_like(latents)\n",
+                            "        timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps,\n",
+                            "                                  (latents.shape[0],), device=device).long()\n",
+                            "        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)\n",
+                            "        \n",
+                            "        noise_pred = pipe.unet(noisy_latents, timesteps, encoder_hidden_states).sample\n",
+                            "        loss = torch.nn.functional.mse_loss(noise_pred, noise)\n",
+                            "        \n",
+                            "        optimizer.zero_grad()\n",
+                            "        loss.backward()\n",
+                            "        optimizer.step()\n",
+                            "        \n",
+                            "        total_loss += loss.item()\n",
+                            "    \n",
+                            "    avg_loss = total_loss / len(dataloader)\n",
+                            "    print(f\"Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f}\")\n",
+                            "\n",
+                            "# Save model\n",
+                            "print(\"\\nSaving model...\")\n",
+                            "pipe.unet.save_pretrained(OUTPUT_PATH / \"unet\")\n",
+                            "print(f\"Model saved to {OUTPUT_PATH}\")\n",
+                            "\n",
+                            "# Pack for download\n",
+                            "!zip -r /content/model.zip /content/outputs/\n",
+                            "print(\"\\nModel packed to model.zip\")"
+                        ],
+                        "execution_count": None,
+                        "outputs": []
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "## Download Trained Model"
+                        ]
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "source": [
+                            "from google.colab import files\n",
+                            "files.download(\"model.zip\")\n",
+                            "print(\"Download started!\")"
+                        ],
+                        "execution_count": None,
+                        "outputs": []
+                    }
+                ],
+                "metadata": {
+                    "kernelspec": {
+                        "display_name": "Python 3",
+                        "language": "python",
+                        "name": "python3"
+                    },
+                    "language_info": {
+                        "codemirror_mode": {
+                            "name": "ipython",
+                            "version": 3
+                        },
+                        "file_extension": ".py",
+                        "mimetype": "text/x-python",
+                        "name": "python",
+                        "nbconvert_exporter": "python",
+                        "pygments_lexer": "ipython3",
+                        "version": "3.10.0"
+                    },
+                    "colab": {
+                        "provenance": [],
+                        "gpuType": "T4",
+                        "machine_shape": "hm"
+                    },
+                    "accelerator": "GPU"
+                },
+                "nbformat": 4,
+                "nbformat_minor": 0
+            }
+            
+            # Сохраняем как JSON с правильной структурой
+            import json
+            with open(notebook_path, 'w', encoding='utf-8') as f:
+                json.dump(notebook_content, f, indent=1, ensure_ascii=False)
+            
             return str(notebook_path)
         
         self.export_dataset_btn.click(export_dataset, inputs=[self.dataset_name], outputs=[self.export_status])
