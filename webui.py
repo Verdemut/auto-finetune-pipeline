@@ -408,108 +408,83 @@ class PlatformAwareGUI:
         
         return status
     
-    def _create_colab_export_ui(self):
-        """Create Google Colab export interface"""
-        
-        gr.Markdown(f"### {self._('colab_title')}")
-        gr.Markdown(self._("colab_description"))
-        
-        with gr.Row():
-            with gr.Column(scale=1):
-                gr.Markdown(f"#### {self._('dataset_export')}")
-                
-                self.export_dataset_btn = gr.Button(self._("export_dataset_btn"), variant="secondary")
-                self.export_status = gr.Markdown("")
-                
-                self.export_config_btn = gr.Button(self._("export_config_btn"), variant="secondary")
-                self.config_status = gr.Markdown("")
+def _create_colab_export_ui(self):
+    """Create Google Colab export interface"""
+    
+    gr.Markdown(f"### {self._('colab_title')}")
+    gr.Markdown(self._("colab_description"))
+    
+    with gr.Row():
+        with gr.Column(scale=1):
+            gr.Markdown(f"#### {self._('dataset_export')}")
             
-            with gr.Column(scale=2):
-                gr.Markdown(f"#### {self._('generate_notebook_btn')}")
-                
-                self.generate_btn = gr.Button(self._("generate_notebook_btn"), variant="primary")
-                self.notebook_output = gr.File(label=self._("download_notebook"))
-                
-                gr.Markdown(f"#### {self._('colab_instructions')}")
-                gr.Markdown(f"""
-                {self._('colab_step1')}
-                {self._('colab_step2')}
-                {self._('colab_step3')}
-                {self._('colab_step4')}
-                
-                {self._('colab_note')}
-                """)
-        
-        def export_dataset(dataset_name):
-            dataset_path = Path(f"./datasets/{dataset_name}")
-            if not dataset_path.exists():
-                return self._("status_dataset_not_found")
+            self.export_dataset_btn = gr.Button(self._("export_dataset_btn"), variant="secondary")
+            self.export_status = gr.Markdown("")
             
-            try:
-                zip_path = Path(f"./exports/{dataset_name}.zip")
-                zip_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file in dataset_path.rglob("*"):
-                        zipf.write(file, file.relative_to(dataset_path.parent))
-                
-                return self._("status_export_success", path=str(zip_path))
-            except Exception as e:
-                return self._("status_export_error", error=str(e))
+            self.export_config_btn = gr.Button(self._("export_config_btn"), variant="secondary")
+            self.config_status = gr.Markdown("")
         
-        def export_config():
-            # Collect current config
-            config = {
-                "dataset_name": self.dataset_name.value if hasattr(self, 'dataset_name') else "my_dataset",
-                "output_name": self.output_name.value if hasattr(self, 'output_name') else "my_model",
-                "method": self.method.value if hasattr(self, 'method') else "auto",
-                "num_epochs": self.num_epochs.value if hasattr(self, 'num_epochs') else 50,
-                "batch_size": self.batch_size.value if hasattr(self, 'batch_size') else 1,
-                "gradient_accumulation": self.gradient_accumulation.value if hasattr(self, 'gradient_accumulation') else 2,
-                "learning_rate": self.learning_rate.value if hasattr(self, 'learning_rate') else "1e-4",
-                "image_size": self.image_size.value if hasattr(self, 'image_size') else 512,
-                "base_model": self.base_model.value if hasattr(self, 'base_model') else "runwayml/stable-diffusion-v1-5",
-                "use_fp16": self.use_fp16.value if hasattr(self, 'use_fp16') else True,
-                "enable_xformers": self.enable_xformers.value if hasattr(self, 'enable_xformers') else True,
-            }
+        with gr.Column(scale=2):
+            gr.Markdown(f"#### {self._('generate_notebook_btn')}")
             
-            try:
-                config_path = Path("./exports/training_config.json")
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, indent=2, ensure_ascii=False)
-                
-                return self._("status_export_success", path=str(config_path))
-            except Exception as e:
-                return self._("status_export_error", error=str(e))
-        
-        def generate_colab_notebook():
-            notebook_content = self._create_colab_notebook()
+            self.generate_btn = gr.Button(self._("generate_notebook_btn"), variant="primary")
+            self.notebook_output = gr.File(label=self._("download_notebook"))
             
-            notebook_path = Path("./exports/auto_finetune_colab.ipynb")
-            notebook_path.parent.mkdir(parents=True, exist_ok=True)
+            gr.Markdown(f"#### {self._('colab_instructions')}")
+            gr.Markdown(f"""
+            {self._('colab_step1')}
+            {self._('colab_step2')}
+            {self._('colab_step3')}
+            {self._('colab_step4')}
             
-            with open(notebook_path, 'w', encoding='utf-8') as f:
-                f.write(notebook_content)
+            {self._('colab_note')}
+            """)
+    
+    # Определяем функции внутри метода (они имеют доступ к self через замыкание)
+    def export_dataset(dataset_name):
+        dataset_path = Path(f"./datasets/{dataset_name}")
+        if not dataset_path.exists():
+            return self._("status_dataset_not_found")
+        
+        try:
+            zip_path = Path(f"./exports/{dataset_name}.zip")
+            zip_path.parent.mkdir(parents=True, exist_ok=True)
             
-            return notebook_path
+            import zipfile
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file in dataset_path.rglob("*"):
+                    zipf.write(file, file.relative_to(dataset_path.parent))
+            
+            return str(zip_path)
+        except Exception as e:
+            return self._("status_export_error", error=str(e))
+    
+    def export_config():
+        # Собираем конфиг из значений компонентов
+        config = {
+            "dataset_name": self.dataset_name.value if hasattr(self, 'dataset_name') else "my_dataset",
+            "output_name": self.output_name.value if hasattr(self, 'output_name') else "my_model",
+            "method": self.method.value if hasattr(self, 'method') else "auto",
+            "num_epochs": self.num_epochs.value if hasattr(self, 'num_epochs') else 50,
+            "batch_size": self.batch_size.value if hasattr(self, 'batch_size') else 1,
+            "gradient_accumulation": self.gradient_accumulation.value if hasattr(self, 'gradient_accumulation') else 2,
+            "learning_rate": self.learning_rate.value if hasattr(self, 'learning_rate') else "1e-4",
+            "image_size": self.image_size.value if hasattr(self, 'image_size') else 512,
+            "base_model": self.base_model.value if hasattr(self, 'base_model') else "runwayml/stable-diffusion-v1-5",
+            "use_fp16": self.use_fp16.value if hasattr(self, 'use_fp16') else True,
+            "enable_xformers": self.enable_xformers.value if hasattr(self, 'enable_xformers') else True,
+        }
         
-        self.export_dataset_btn.click(
-            export_dataset,
-            inputs=[self.dataset_name],
-            outputs=[self.export_status]
-        )
-        
-        self.export_config_btn.click(
-            export_config,
-            outputs=[self.config_status]
-        )
-        
-        self.generate_btn.click(
-            generate_colab_notebook,
-            outputs=[self.notebook_output]
-        )
+        try:
+            config_path = Path("./exports/training_config.json")
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            return str(config_path)
+        except Exception as e:
+            return self._("status_export_error", error=str(e))
     
     def generate_colab_notebook():
         notebook_content = self._create_colab_notebook()
@@ -520,8 +495,24 @@ class PlatformAwareGUI:
         with open(notebook_path, 'w', encoding='utf-8') as f:
             f.write(notebook_content)
         
-        # Возвращаем строку, а не WindowsPath
         return str(notebook_path)
+    
+    # Привязываем функции к кнопкам
+    self.export_dataset_btn.click(
+        export_dataset,
+        inputs=[self.dataset_name],
+        outputs=[self.export_status]
+    )
+    
+    self.export_config_btn.click(
+        export_config,
+        outputs=[self.config_status]
+    )
+    
+    self.generate_btn.click(
+        generate_colab_notebook,
+        outputs=[self.notebook_output]
+    )
     
     def _create_dataset_ui(self):
         with gr.Row():
