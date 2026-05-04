@@ -164,8 +164,8 @@ class Trainer:
                 self.logger.info(f"Epoch {epoch+1} completed | Average loss: {avg_loss:.4f}")
                 
                 # Сохраняем чекпоинт
-                if self.config['export']['save_checkpoints']:
-                    if (epoch + 1) % self.config['export']['save_checkpoints_every'] == 0:
+                save_every = self.config['export'].get('save_checkpoints_every', 5)
+                if (epoch + 1) % save_every == 0:
                         self._save_checkpoint(unet, epoch, optimizer, global_step)
         
         except KeyboardInterrupt:

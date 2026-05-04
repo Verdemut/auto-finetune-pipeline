@@ -14,7 +14,6 @@ import yaml
 import psutil
 import subprocess
 import sys
-import zipfile
 
 # Импортируем наш пайплайн
 from main import AutoFinetunePipeline
@@ -39,14 +38,12 @@ class PlatformAwareGUI:
                 "subtitle": "Professional Neural Network Training Interface",
                 "platform_select": "Training Platform",
                 "platform_local": "Local PC (GPU/CPU)",
-                "platform_colab": "Google Colab (Cloud GPU)",
                 "tab_dataset": "Dataset Management",
                 "tab_config": "Training Configuration",
                 "tab_advanced": "Advanced Settings",
                 "tab_control": "Training Control",
                 "tab_monitor": "Monitoring",
                 "tab_inference": "Inference",
-                "tab_colab": "Google Colab Export",
                 "dataset_upload": "Dataset Upload",
                 "upload_images": "Upload Images",
                 "default_caption": "Default Caption",
@@ -131,33 +128,18 @@ class PlatformAwareGUI:
                 "lang_en": "English",
                 "lang_ru": "Russian",
                 "restart_button": "Apply and Restart",
-                "colab_title": "Export to Google Colab",
-                "colab_description": "Generate a Colab notebook to train your model in the cloud",
-                "dataset_export": "Export Dataset",
-                "export_dataset_btn": "Export Dataset as ZIP",
-                "export_config_btn": "Export Config as JSON",
-                "generate_notebook_btn": "Generate Colab Notebook",
-                "download_notebook": "Download Notebook (.ipynb)",
-                "colab_instructions": "Instructions",
-                "colab_step1": "1. Upload the dataset ZIP to Google Drive or Colab",
-                "colab_step2": "2. Upload the config JSON",
-                "colab_step3": "3. Run the notebook cells in order",
-                "colab_step4": "4. Download your trained model from Colab",
-                "colab_note": "Note: Colab provides free GPU for ~12 hours",
             },
             "ru": {
                 "title": "Auto-Finetune Pipeline",
                 "subtitle": "Профессиональный интерфейс обучения нейросетей",
                 "platform_select": "Платформа для обучения",
                 "platform_local": "Локальный ПК (GPU/CPU)",
-                "platform_colab": "Google Colab (Облачный GPU)",
                 "tab_dataset": "Управление датасетом",
                 "tab_config": "Настройки обучения",
                 "tab_advanced": "Расширенные настройки",
                 "tab_control": "Управление обучением",
                 "tab_monitor": "Мониторинг",
                 "tab_inference": "Генерация",
-                "tab_colab": "Экспорт в Colab",
                 "dataset_upload": "Загрузка датасета",
                 "upload_images": "Загрузить изображения",
                 "default_caption": "Описание по умолчанию",
@@ -242,19 +224,6 @@ class PlatformAwareGUI:
                 "lang_en": "Английский",
                 "lang_ru": "Русский",
                 "restart_button": "Применить и перезапустить",
-                "colab_title": "Экспорт в Google Colab",
-                "colab_description": "Сгенерируйте Colab ноутбук для обучения модели в облаке",
-                "dataset_export": "Экспорт датасета",
-                "export_dataset_btn": "Экспортировать датасет в ZIP",
-                "export_config_btn": "Экспортировать конфиг в JSON",
-                "generate_notebook_btn": "Сгенерировать Colab ноутбук",
-                "download_notebook": "Скачать ноутбук (.ipynb)",
-                "colab_instructions": "Инструкция",
-                "colab_step1": "1. Загрузите ZIP с датасетом в Google Drive или Colab",
-                "colab_step2": "2. Загрузите JSON с конфигурацией",
-                "colab_step3": "3. Запустите ячейки ноутбука по порядку",
-                "colab_step4": "4. Скачайте обученную модель из Colab",
-                "colab_note": "Примечание: Colab предоставляет бесплатный GPU на ~12 часов",
             }
         }
         
@@ -303,9 +272,6 @@ class PlatformAwareGUI:
                 
                 with gr.TabItem(self._("tab_inference")):
                     self._create_inference_ui()
-                
-                with gr.TabItem(self._("tab_colab")):
-                    self._create_colab_export_ui()
             
             def restart_app(lang_selected):
                 new_lang = "ru" if lang_selected == self._("lang_ru") else "en"
@@ -333,237 +299,7 @@ class PlatformAwareGUI:
             status += f"**{self._('hardware_gpu')}**: {self._('hardware_not_detected')}\n"
         
         return status
-    
-    def _create_colab_export_ui(self):
-        gr.Markdown(f"### {self._('colab_title')}")
-        gr.Markdown(self._("colab_description"))
-        
-        with gr.Row():
-            with gr.Column(scale=1):
-                gr.Markdown(f"#### {self._('dataset_export')}")
-                self.export_dataset_btn = gr.Button(self._("export_dataset_btn"), variant="secondary")
-                self.export_status = gr.Markdown("")
-                self.export_config_btn = gr.Button(self._("export_config_btn"), variant="secondary")
-                self.config_status = gr.Markdown("")
-            
-            with gr.Column(scale=2):
-                gr.Markdown(f"#### {self._('generate_notebook_btn')}")
-                self.generate_btn = gr.Button(self._("generate_notebook_btn"), variant="primary")
-                self.notebook_output = gr.File(label=self._("download_notebook"))
-                
-                gr.Markdown(f"#### {self._('colab_instructions')}")
-                gr.Markdown(f"""
-                {self._('colab_step1')}
-                {self._('colab_step2')}
-                {self._('colab_step3')}
-                {self._('colab_step4')}
-                
-                {self._('colab_note')}
-                """)
-        
-        def export_dataset(dataset_name):
-            dataset_path = Path(f"./datasets/{dataset_name}")
-            if not dataset_path.exists():
-                return self._("status_dataset_not_found")
-            try:
-                zip_path = Path(f"./exports/{dataset_name}.zip")
-                zip_path.parent.mkdir(parents=True, exist_ok=True)
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file in dataset_path.rglob("*"):
-                        zipf.write(file, file.relative_to(dataset_path.parent))
-                return str(zip_path)
-            except Exception as e:
-                return self._("status_export_error", error=str(e))
-        
-        def export_config():
-            config = {
-                "method": self.method.value if hasattr(self, 'method') else "auto",
-                "num_epochs": self.num_epochs.value if hasattr(self, 'num_epochs') else 50,
-                "batch_size": self.batch_size.value if hasattr(self, 'batch_size') else 1,
-                "learning_rate": self.learning_rate.value if hasattr(self, 'learning_rate') else "1e-4",
-            }
-            try:
-                config_path = Path("./exports/training_config.json")
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, indent=2, ensure_ascii=False)
-                return str(config_path)
-            except Exception as e:
-                return self._("status_export_error", error=str(e))
-        
-        def _create_colab_notebook(self):
-            notebook_path = Path("./exports/auto_finetune_colab.ipynb")
-            notebook_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            notebook_content = {
-                "cell_type": "code",
-                "metadata": {},
-                "source": [
-                    "import torch\n",
-                    "from diffusers import StableDiffusionPipeline, DDPMScheduler\n",
-                    "from torch.utils.data import Dataset, DataLoader\n",
-                    "from torchvision import transforms\n",
-                    "from PIL import Image\n",
-                    "import pandas as pd\n",
-                    "from pathlib import Path\n",
-                    "\n",
-                    "torch.cuda.empty_cache()\n",
-                    "\n",
-                    "IMAGE_SIZE = config.get('image_size', 384)\n",
-                    "NUM_EPOCHS = config.get('num_epochs', 10)\n",
-                    "LEARNING_RATE = 1e-5  # Уменьшенная скорость обучения\n",
-                    "\n",
-                    "class SimpleDataset(Dataset):\n",
-                    "    def __init__(self, folder):\n",
-                    "        self.images = list(folder.glob(\"*.jpg\")) + list(folder.glob(\"*.png\"))\n",
-                    "        self.transform = transforms.Compose([\n",
-                    "            transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),\n",
-                    "            transforms.ToTensor(),\n",
-                    "            transforms.Normalize([0.5], [0.5])\n",
-                    "        ])\n",
-                    "        csv_path = folder / \"captions.csv\"\n",
-                    "        if csv_path.exists():\n",
-                    "            df = pd.read_csv(csv_path)\n",
-                    "            self.captions = dict(zip(df['image'].astype(str), df['caption']))\n",
-                    "        else:\n",
-                    "            self.captions = {}\n",
-                    "    \n",
-                    "    def __len__(self):\n",
-                    "        return len(self.images)\n",
-                    "    \n",
-                    "    def __getitem__(self, idx):\n",
-                    "        img = Image.open(self.images[idx]).convert('RGB')\n",
-                    "        img = self.transform(img)\n",
-                    "        name = self.images[idx].stem\n",
-                    "        caption = self.captions.get(name, f\"image_{name}\")\n",
-                    "        return {\"pixel_values\": img, \"caption\": caption}\n",
-                    "\n",
-                    "# Find dataset\n",
-                    "dataset_folder = None\n",
-                    "for item in Path(\"./dataset\").iterdir():\n",
-                    "    if item.is_dir():\n",
-                    "        dataset_folder = item\n",
-                    "        break\n",
-                    "if dataset_folder is None:\n",
-                    "    dataset_folder = Path(\"./dataset\")\n",
-                    "\n",
-                    "dataset = SimpleDataset(dataset_folder)\n",
-                    "dataloader = DataLoader(dataset, batch_size=1, shuffle=True)\n",
-                    "print(f\"Loaded {len(dataset)} images\")\n",
-                    "\n",
-                    "# Load model\n",
-                    "device = \"cuda\"\n",
-                    "pipe = StableDiffusionPipeline.from_pretrained(\n",
-                    "    \"runwayml/stable-diffusion-v1-5\",\n",
-                    "    torch_dtype=torch.float16,\n",
-                    "    safety_checker=None\n",
-                    ").to(device)\n",
-                    "\n",
-                    "pipe.enable_attention_slicing()\n",
-                    "pipe.enable_vae_slicing()\n",
-                    "\n",
-                    "for param in pipe.text_encoder.parameters():\n",
-                    "    param.requires_grad = False\n",
-                    "for param in pipe.vae.parameters():\n",
-                    "    param.requires_grad = False\n",
-                    "\n",
-                    "# Используем меньший learning rate\n",
-                    "optimizer = torch.optim.AdamW(pipe.unet.parameters(), lr=LEARNING_RATE, weight_decay=0.01)\n",
-                    "noise_scheduler = DDPMScheduler.from_pretrained(\n",
-                    "    \"runwayml/stable-diffusion-v1-5\",\n",
-                    "    subfolder=\"scheduler\"\n",
-                    ")\n",
-                    "\n",
-                    "print(f\"Training for {NUM_EPOCHS} epochs with learning rate {LEARNING_RATE}...\")\n",
-                    "\n",
-                    "for epoch in range(NUM_EPOCHS):\n",
-                    "    total_loss = 0\n",
-                    "    valid_batches = 0\n",
-                    "    \n",
-                    "    for batch in dataloader:\n",
-                    "        pixel_values = batch[\"pixel_values\"].to(device).half()\n",
-                    "        captions = batch[\"caption\"]\n",
-                    "        \n",
-                    "        text_inputs = pipe.tokenizer(\n",
-                    "            captions,\n",
-                    "            padding=\"max_length\",\n",
-                    "            max_length=pipe.tokenizer.model_max_length,\n",
-                    "            truncation=True,\n",
-                    "            return_tensors=\"pt\"\n",
-                    "        ).to(device)\n",
-                    "        \n",
-                    "        with torch.no_grad():\n",
-                    "            encoder_hidden_states = pipe.text_encoder(text_inputs.input_ids)[0]\n",
-                    "            latents = pipe.vae.encode(pixel_values).latent_dist.sample()\n",
-                    "            latents = latents * pipe.vae.config.scaling_factor\n",
-                    "        \n",
-                    "        noise = torch.randn_like(latents)\n",
-                    "        timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps,\n",
-                    "                                  (latents.shape[0],), device=device).long()\n",
-                    "        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)\n",
-                    "        \n",
-                    "        noise_pred = pipe.unet(noisy_latents, timesteps, encoder_hidden_states).sample\n",
-                    "        loss = torch.nn.functional.mse_loss(noise_pred.float(), noise.float())\n",
-                    "        \n",
-                    "        # Проверка на nan\n",
-                    "        if torch.isnan(loss):\n",
-                    "            print(f\"Warning: NaN loss detected, skipping batch\")\n",
-                    "            continue\n",
-                    "        \n",
-                    "        optimizer.zero_grad()\n",
-                    "        loss.backward()\n",
-                    "        \n",
-                    "        # Градиентное ограничение для стабильности\n",
-                    "        torch.nn.utils.clip_grad_norm_(pipe.unet.parameters(), max_norm=1.0)\n",
-                    "        \n",
-                    "        optimizer.step()\n",
-                    "        \n",
-                    "        total_loss += loss.item()\n",
-                    "        valid_batches += 1\n",
-                    "    \n",
-                    "    if valid_batches > 0:\n",
-                    "        avg_loss = total_loss / valid_batches\n",
-                    "        print(f\"Epoch {epoch+1}/{NUM_EPOCHS} | Loss: {avg_loss:.6f}\")\n",
-                    "    else:\n",
-                    "        print(f\"Epoch {epoch+1}/{NUM_EPOCHS} | No valid batches\")\n",
-                    "        break\n",
-                    "    \n",
-                    "    torch.cuda.empty_cache()\n",
-                    "\n",
-                    "print(\"Training completed!\")\n",
-                    "\n",
-                    "# Save model\n",
-                    "Path(\"./outputs/model\").mkdir(parents=True, exist_ok=True)\n",
-                    "pipe.unet.save_pretrained(\"./outputs/model/unet\")\n",
-                    "!zip -r /content/model.zip /content/outputs/\n",
-                    "print(\"Model saved to model.zip\")"
-                ],
-                "execution_count": None,
-                "outputs": []
-            }
-            
-            import json
-            with open(notebook_path, 'w', encoding='utf-8') as f:
-                json.dump(notebook_content, f, indent=1, ensure_ascii=False)
-            
-            return str(notebook_path)
-        
-        self.export_dataset_btn.click(
-            export_dataset, 
-            inputs=[self.dataset_name], 
-            outputs=[self.export_status]
-        )
-        
-        self.export_config_btn.click(
-            export_config, 
-            outputs=[self.config_status]
-        )
-        
-        self.generate_btn.click(
-            _create_colab_notebook, 
-            outputs=[self.notebook_output]
-        )
-    
+       
     def _create_dataset_ui(self):
         with gr.Row():
             with gr.Column(scale=1):
